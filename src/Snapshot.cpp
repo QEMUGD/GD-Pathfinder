@@ -126,7 +126,9 @@ namespace {
                          o->m_lastPosition.x, o->m_lastPosition.y, o->m_varianceIndex};
     }
 
+#ifdef GEODE_IS_WINDOWS
     static constexpr size_t kGroupCounterOffset = 1216;
+#endif
     inline int groupCounterOf(GameObject* o) { return o->m_enabledGroupsCounter; }
     inline void setGroupCounter(GameObject* o, int v) { o->m_enabledGroupsCounter = v; }
 
@@ -279,6 +281,7 @@ void setDynamicObjects(std::vector<GameObject*> objects) {
     std::sort(s_byX.begin(), s_byX.end(), [](uint32_t a, uint32_t b) { return s_basePose[a].px < s_basePose[b].px; });
     if (s_dynamic.size() >= (1u << (32 - kFlagBits)))
         log::error("[snapshot] {} dynamic objects exceed the flag-state index range", s_dynamic.size());
+#ifdef GEODE_IS_WINDOWS
     if (!s_dynamic.empty() && s_dynamic[0]) {
         auto o = s_dynamic[0];
         auto off = reinterpret_cast<char*>(&o->m_lastPosition) - reinterpret_cast<char*>(o);
@@ -287,6 +290,7 @@ void setDynamicObjects(std::vector<GameObject*> objects) {
         if (gco != (long long) kGroupCounterOffset)
             log::error("[snapshot] GameObject::m_enabledGroupsCounter is at {} (expected {})", gco, kGroupCounterOffset);
     }
+#endif
 }
 
 std::vector<GameObject*> const& dynamicObjects() { return s_dynamic; }
@@ -429,11 +433,11 @@ bool restoreSnapshot(PlayLayer* pl, Snapshot const& snap) {
     pl->m_isPracticeMode = wasPractice;
     if (auto em = pl->m_effectManager) {
         em->m_itemCountMap.clear();
-        em->m_itemCountMap.insert(snap.itemCounts.begin(), snap.itemCounts.end());
+        for (auto const& [k, v] : snap.itemCounts) em->m_itemCountMap.emplace(k, v);
         em->m_persistentItemCountMap.clear();
-        em->m_persistentItemCountMap.insert(snap.persistentCounts.begin(), snap.persistentCounts.end());
+        for (auto const& [k, v] : snap.persistentCounts) em->m_persistentItemCountMap.emplace(k, v);
         em->m_timerItemMap.clear();
-        em->m_timerItemMap.insert(snap.timers.begin(), snap.timers.end());
+        for (auto const& [k, v] : snap.timers) em->m_timerItemMap.emplace(k, v);
     }
 
     for (int i = 0; i < 2; i++) {

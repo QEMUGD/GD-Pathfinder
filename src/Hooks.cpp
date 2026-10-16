@@ -31,6 +31,7 @@ using namespace geode::prelude;
 using namespace gdpf;
 
 namespace {
+#ifdef GEODE_IS_WINDOWS
     std::string gameCallers(int maxCount) {
         static uintptr_t base = 0, end = 0;
         if (!base) {
@@ -56,6 +57,9 @@ namespace {
         }
         return out;
     }
+#else
+    std::string gameCallers(int) { return ""; }
+#endif
 }
 
 #ifndef GDPF_GMD_PRIORITY
