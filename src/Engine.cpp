@@ -36,8 +36,10 @@ namespace {
         using cocos2d::CCActionManager::update;
     };
 
+#ifdef GEODE_IS_WINDOWS
     constexpr size_t kCounterOwnerOffset = 2168;
     constexpr size_t kCounterFirstDword = 188;
+#endif
     bool s_countersCaptured = false;
     float s_initialTimeWarp = 1.f;
     bool s_initialWarpCaptured = false;
@@ -92,12 +94,25 @@ namespace {
     struct AttemptHome { bool captured = false; int attempts = 0, saved = 0; };
     std::map<int, AttemptHome> s_attemptHomes;
 
+    void* counterOwner(char* base) {
+#ifdef GEODE_IS_WINDOWS
+        return *reinterpret_cast<void**>(base + kCounterOwnerOffset);
+#else
+        (void) base;
+        return nullptr;
+#endif
+    }
+
     int32_t* resetCounters(PlayLayer* pl) {
         if (!pl) return nullptr;
+#ifdef GEODE_IS_WINDOWS
         auto base = reinterpret_cast<char*>(static_cast<GJBaseGameLayer*>(pl));
-        auto owner = *reinterpret_cast<char**>(base + kCounterOwnerOffset);
+        auto owner = static_cast<char*>(counterOwner(base));
         if (!owner) return nullptr;
         return reinterpret_cast<int32_t*>(owner + kCounterFirstDword * sizeof(int32_t));
+#else
+        return nullptr;
+#endif
     }
 
     void pinResetCounters(PlayLayer* pl) {
@@ -136,7 +151,7 @@ void beginTakeover(PlayLayer* pl) {
             reinterpret_cast<char*>(&pl->m_effectManager) - base,
             reinterpret_cast<char*>(&pl->m_gameState) - base,
             reinterpret_cast<char*>(&pl->m_objects) - base,
-            fmt::ptr(*reinterpret_cast<void**>(base + kCounterOwnerOffset)));
+            fmt::ptr(counterOwner(base)));
     }
     if (pl && pl->m_effectManager && pl->m_level) {
         int id = pl->m_level->m_levelID;
@@ -199,6 +214,7 @@ void applyButton(PlayLayer* pl, bool down, int button, bool player2) {
     s_state.injecting = false;
 }
 namespace {
+#ifdef GEODE_IS_WINDOWS
     void* s_veh = nullptr;
 
     long __stdcall fatalProbe(_EXCEPTION_POINTERS* info) {
@@ -237,6 +253,9 @@ namespace {
         s_veh = AddVectoredExceptionHandler(1, (PVECTORED_EXCEPTION_HANDLER) fatalProbe);
         log::info("[fatal] vectored probe installed ({})", s_veh ? "ok" : "failed");
     }
+#else
+    void installFatalProbe() {}
+#endif
 }
 
 void syncHolding(bool p1Down, bool p2Down) {
@@ -282,11 +301,18 @@ void applyDueInputs(PlayLayer* pl, InputList const& inputs, size_t& cursor) {
     }
 }
 
+#ifdef GEODE_IS_WINDOWS
 static constexpr size_t kPlayerReversedOffset = 2498;
+#endif
 
 bool playerReversed(cocos2d::CCNode* player) {
     if (!player) return false;
+#ifdef GEODE_IS_WINDOWS
     return *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(player) + kPlayerReversedOffset) != 0;
+#else
+    if (auto po = typeinfo_cast<PlayerObject*>(player)) return po->m_isGoingLeft;
+    return false;
+#endif
 }
 
 float playerDirection(cocos2d::CCNode* player) { return playerReversed(player) ? -1.f : 1.f; }
@@ -509,11 +535,11 @@ void resetPersistentItems(PlayLayer* pl) {
     auto em = pl->m_effectManager;
     auto const& b = it->second;
     em->m_itemCountMap.clear();
-    em->m_itemCountMap.insert(b.counts.begin(), b.counts.end());
+    for (auto const& [k, v] : b.counts) em->m_itemCountMap.emplace(k, v);
     em->m_persistentItemCountMap.clear();
-    em->m_persistentItemCountMap.insert(b.persistentCounts.begin(), b.persistentCounts.end());
+    for (auto const& [k, v] : b.persistentCounts) em->m_persistentItemCountMap.emplace(k, v);
     em->m_timerItemMap.clear();
-    em->m_timerItemMap.insert(b.timers.begin(), b.timers.end());
+    for (auto const& [k, v] : b.timers) em->m_timerItemMap.emplace(k, v);
 }
 
 void noteActivation(GameObject* object, uint32_t kind) {

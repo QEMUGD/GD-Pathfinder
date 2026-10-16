@@ -155,7 +155,7 @@ namespace {
                                 m_cur.fieldDiffs++;
                                 std::string detail;
                                 if (d.find("m_touchedRings") != std::string::npos) {
-                                    auto show = [&](std::unordered_set<int> const& set) {
+                                    auto show = [&](auto const& set) {
                                         std::string o = "{";
                                         for (int id : set) {
                                             o += fmt::format(" {}", id);
